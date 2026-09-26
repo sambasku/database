@@ -1,0 +1,25 @@
+{
+  "name": "sambasku-database",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Public dictionary dataset export for SambasKu",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dataset:export": "tsx scripts/export-published-dataset.ts",
+    "test": "vitest run",
+    "test:unit": "vitest run"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.18.0",
+    "dotenv": "^17.4.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "tsx": "^4.23.15",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.9"
+  }
+}

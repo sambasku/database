@@ -1,0 +1,239 @@
+name: Export & Release Dataset
+
+# Maintainer: Actions → Export & Release Dataset → Run workflow
+#
+# Secrets (Settings → Secrets and variables → Actions):
+#   DATABASE_URL          - libsql://… (staging dulu)
+#   DATABASE_AUTH_TOKEN   - token baca DB sumber
+#
+# Skip Release baru jika sha256 sama dengan metadata/active.json (QUESTIONS G.34).
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: 'release_version (kosong = active + 1)'
+        required: false
+        type: string
+        default: ''
+      channel:
+        description: 'channel manifest (staging | production)'
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+        default: staging
+      min_app_version:
+        description: 'min_app_version untuk klien'
+        required: false
+        type: string
+        default: '0.1.0'
+      allow_empty:
+        description: 'Izinkan word_count = 0'
+        required: false
+        type: boolean
+        default: false
+      dry_run:
+        description: 'Hanya export + validasi (tanpa Release / commit)'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dataset-export
+  cancel-in-progress: false
+
+jobs:
+  export-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Cek secrets
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_AUTH_TOKEN: ${{ secrets.DATABASE_AUTH_TOKEN }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::Secret DATABASE_URL kosong"
+            exit 1
+          fi
+          if [ -z "$DATABASE_AUTH_TOKEN" ]; then
+            echo "::error::Secret DATABASE_AUTH_TOKEN kosong"
+            exit 1
+          fi
+          echo "Sumber host: $(echo "$DATABASE_URL" | sed -E 's#^[a-z]+://##' | cut -d/ -f1)"
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm test
+
+      - name: Tentukan release_version
+        id: ver
+        env:
+          INPUT_RELEASE_VERSION: ${{ inputs.release_version }}
+        run: |
+          ACTIVE_V=$(jq -r '.release_version // 0' metadata/active.json)
+          if [ -n "$INPUT_RELEASE_VERSION" ]; then
+            NEXT="$INPUT_RELEASE_VERSION"
+          else
+            NEXT=$((ACTIVE_V + 1))
+          fi
+          echo "release_version=$NEXT" >> "$GITHUB_OUTPUT"
+          echo "active_version=$ACTIVE_V" >> "$GITHUB_OUTPUT"
+          echo "Release target: v$NEXT (active sekarang: $ACTIVE_V)"
+
+      - name: Export dataset
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_AUTH_TOKEN: ${{ secrets.DATABASE_AUTH_TOKEN }}
+          DATASET_RELEASE_VERSION: ${{ steps.ver.outputs.release_version }}
+          DATASET_CHANNEL: ${{ inputs.channel }}
+          DATASET_MIN_APP_VERSION: ${{ inputs.min_app_version }}
+          DATASET_OUT_DIR: ${{ github.workspace }}/tmp/dataset-export
+        run: pnpm dataset:export
+
+      - name: Baca manifest + gate
+        id: manifest
+        env:
+          ALLOW_EMPTY: ${{ inputs.allow_empty }}
+        run: |
+          MANIFEST=tmp/dataset-export/manifest.json
+          WORD_COUNT=$(jq -r '.word_count' "$MANIFEST")
+          SHA=$(jq -r '.database.sha256' "$MANIFEST")
+          SIZE=$(jq -r '.database.size' "$MANIFEST")
+          RELEASED_AT=$(jq -r '.released_at' "$MANIFEST")
+          ACTIVE_SHA=$(jq -r '.database.sha256 // empty' metadata/active.json)
+
+          echo "word_count=$WORD_COUNT" >> "$GITHUB_OUTPUT"
+          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+          echo "size=$SIZE" >> "$GITHUB_OUTPUT"
+          echo "released_at=$RELEASED_AT" >> "$GITHUB_OUTPUT"
+
+          echo "word_count=$WORD_COUNT size=$SIZE"
+          echo "sha256=$SHA"
+          echo "active_sha=$ACTIVE_SHA"
+
+          if [ "$WORD_COUNT" = "0" ] && [ "$ALLOW_EMPTY" != "true" ]; then
+            echo "::error::word_count=0 - set allow_empty=true jika memang sengaja"
+            exit 1
+          fi
+
+          if [ -n "$ACTIVE_SHA" ] && [ "$ACTIVE_SHA" = "$SHA" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::sha256 sama dengan active.json - skip Release (G.34)"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload artifact CI
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dataset-export-v${{ steps.ver.outputs.release_version }}
+          path: |
+            tmp/dataset-export/database.sqlite.gz
+            tmp/dataset-export/manifest.json
+            tmp/dataset-export/SHA256SUMS
+            out/
+          if-no-files-found: warn
+
+      - name: Dry-run selesai
+        if: ${{ inputs.dry_run }}
+        run: echo "::notice::dry_run=true - tidak membuat Release / commit"
+
+      - name: Skip (sha sama)
+        if: ${{ !inputs.dry_run && steps.manifest.outputs.skip == 'true' }}
+        run: echo "Tidak ada perubahan konten - selesai tanpa Release."
+
+      - name: Buat GitHub Release
+        id: release
+        if: ${{ !inputs.dry_run && steps.manifest.outputs.skip != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v${{ steps.ver.outputs.release_version }}
+          WORD_COUNT: ${{ steps.manifest.outputs.word_count }}
+          CHANNEL: ${{ inputs.channel }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::error::Tag $TAG sudah ada (Release imutabel). Naikkan release_version."
+            exit 1
+          fi
+
+          gh release create "$TAG" \
+            tmp/dataset-export/database.sqlite.gz \
+            tmp/dataset-export/manifest.json \
+            tmp/dataset-export/SHA256SUMS \
+            --title "Dataset $TAG" \
+            --notes "Public dictionary snapshot ($CHANNEL). word_count=${WORD_COUNT}. schema_version=1."
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Update metadata/active.json
+        if: ${{ !inputs.dry_run && steps.manifest.outputs.skip != 'true' }}
+        env:
+          TAG: v${{ steps.ver.outputs.release_version }}
+          REL: ${{ steps.ver.outputs.release_version }}
+          SHA: ${{ steps.manifest.outputs.sha256 }}
+          SIZE: ${{ steps.manifest.outputs.size }}
+          RELEASED_AT: ${{ steps.manifest.outputs.released_at }}
+          CHANNEL: ${{ inputs.channel }}
+          MIN_APP: ${{ inputs.min_app_version }}
+          REPO: ${{ github.repository }}
+        run: |
+          BASE="https://github.com/${REPO}/releases/download/${TAG}"
+          jq -n \
+            --argjson release_version "$REL" \
+            --argjson schema_version 1 \
+            --arg min_app_version "$MIN_APP" \
+            --arg channel "$CHANNEL" \
+            --arg released_at "$RELEASED_AT" \
+            --arg file "database.sqlite.gz" \
+            --arg url "${BASE}/database.sqlite.gz" \
+            --argjson size "$SIZE" \
+            --arg sha256 "$SHA" \
+            --arg manifest_url "${BASE}/manifest.json" \
+            '{
+              release_version: $release_version,
+              schema_version: $schema_version,
+              min_app_version: $min_app_version,
+              channel: $channel,
+              released_at: $released_at,
+              database: {
+                file: $file,
+                url: $url,
+                size: $size,
+                sha256: $sha256
+              },
+              manifest_url: $manifest_url
+            }' > metadata/active.json
+
+          cat metadata/active.json
+
+      - name: Commit active.json
+        if: ${{ !inputs.dry_run && steps.manifest.outputs.skip != 'true' }}
+        env:
+          REL: ${{ steps.ver.outputs.release_version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add metadata/active.json
+          if git diff --staged --quiet; then
+            echo "active.json tidak berubah"
+            exit 0
+          fi
+          git commit -m "chore(dataset): point active to v${REL}"
+          git push

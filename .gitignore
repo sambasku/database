@@ -1,0 +1,15 @@
+# Artifact lokal dari export (rilis lewat GitHub Release assets, bukan git)
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+*.db
+*.gz
+SHA256SUMS
+/dist/
+/out/
+/tmp/
+node_modules/
+.env
+.env.local
+.DS_Store

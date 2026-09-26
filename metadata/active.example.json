@@ -1,0 +1,13 @@
+{
+  "release_version": 1,
+  "schema_version": 1,
+  "min_app_version": "0.1.0",
+  "released_at": "2026-09-26T00:00:00Z",
+  "database": {
+    "file": "database.sqlite.gz",
+    "url": "https://github.com/sambasku/database/releases/download/v1/database.sqlite.gz",
+    "size": 0,
+    "sha256": "REPLACE_AFTER_FIRST_RELEASE"
+  },
+  "manifest_url": "https://github.com/sambasku/database/releases/download/v1/manifest.json"
+}
