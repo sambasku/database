@@ -26,7 +26,7 @@ Legenda: `[x]` dikunci.
 
 5. [x] Allowlist `v1.md` cukup untuk search + detail + list A-Z v1.
 6. [x] Count sosial / vote / komentar: **tetap API** (bukan snapshot).
-7. [x] `translation_helps` **permanen di luar** dataset (API + L1).
+7. [x] `discussions` **permanen di luar** dataset (API + L1).
 8. [x] Referensi (`languages`, `dialects`, `word_classes`, `categories`):
    export **semua baris aktif** (`deleted_at IS NULL`).
 
@@ -95,7 +95,7 @@ Legenda: `[x]` dikunci.
 
 36. [x] Tes forbidden wajib. Assert minimal: tabel `users`,
    `auth_identities`, `refresh_tokens`, `contributions`, `audit_logs`,
-   `votes`, `comments`, `bookmarks`, `translation_helps`; kolom
+   `votes`, `comments`, `bookmarks`, `discussions`; kolom
    `created_by`, `updated_by`, `deleted_by`, `verified_by`,
    `taken_down_by`, `takedown_reason_code`, `takedown_note`,
    `password_hash`, `email`.

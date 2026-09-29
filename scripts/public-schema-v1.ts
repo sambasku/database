@@ -213,8 +213,8 @@ export const FORBIDDEN_TABLES = [
   'verifier_applications',
   'bug_reports',
   'word_reports',
-  'translation_helps',
-  'translation_help_replies',
+  'discussions',
+  'discussion_replies',
   'word_import_sessions',
   'comment_blocklist_words',
 ] as const;
