@@ -11,9 +11,6 @@ Ini **bukan** production database Turso, **bukan** backup akun, dan
 **bukan** tempat menyimpan token. Hanya salinan sanitasi korpus
 `published` yang boleh diunduh klien (mobile / kelak web) lewat HTTPS.
 
-Kontrak strategi: `docs/backlogs/MOBILE_LOCAL_STRATEGI.md` di monorepo
-(§16.3 allowlist, §17 tools, §18 rilis, §19 **Fase DS** sebelum B).
-
 ## Apa isi repo ini?
 
 | Ada di git | Tidak di git (Release assets) |
@@ -150,9 +147,6 @@ Job akan: `pnpm test` → export → (skip jika sha sama) → GitHub Release
 
 Setelah artifact siap (CLI atau Actions), pointer aktif ada di
 `metadata/active.json`.
-
-Kontrak strategi monorepo: `docs/backlogs/MOBILE_LOCAL_STRATEGI.md`
-(§16.3 allowlist, §17 tools, §18 rilis, §19 Fase DS).
 
 ## Lisensi
 

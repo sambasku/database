@@ -3,7 +3,7 @@
 Status: **dikunci 2026-09-26** (default plan DS; override hanya via PR).
 **Fase B (Flutter SQLite) tidak dimulai** sampai gate DS hijau.
 
-Kontrak induk: `docs/backlogs/MOBILE_LOCAL_STRATEGI.md` (§8, §16-§19).
+
 
 Legenda: `[x]` dikunci.
 
