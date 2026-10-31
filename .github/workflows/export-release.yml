@@ -106,6 +106,16 @@ jobs:
             exit 1
           fi
 
+          # Deteksi salah isi: URL secret berisi JWT (sering tertukar dengan AUTH_TOKEN)
+          if printf '%s' "$URL" | grep -qE '^eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+'; then
+            echo "::error::DB_*_TURSO_URL berisi JWT (mirip token). Secret tertukar: URL harus https://host, token di DB_*_TURSO_AUTH_TOKEN."
+            exit 1
+          fi
+          if printf '%s' "$TOKEN" | grep -qiE '^https?://|^libsql://'; then
+            echo "::error::DB_*_TURSO_AUTH_TOKEN berisi URL. Secret tertukar: pindahkan URL ke DB_*_TURSO_URL."
+            exit 1
+          fi
+
           case "$URL" in
             libsql://*|https://*|http://*|file:*) ;;
             *)
@@ -170,11 +180,17 @@ jobs:
           echo "preflight curl_exit=${curl_ec} http_code=${code}"
           if [ "$curl_ec" -ne 0 ]; then
             HOST=$(printf '%s' "$PREFLIGHT_URL" | sed -E 's#^[a-zA-Z][a-zA-Z0-9+.-]*://##' | cut -d/ -f1 | cut -d? -f1)
+            HOST_LEN=${#HOST}
+            echo "host_len=${HOST_LEN} host_prefix=$(printf '%s' "$HOST" | cut -c1-12)"
+            if [ "$HOST_LEN" -gt 253 ] || printf '%s' "$HOST" | grep -qE '^eyJ'; then
+              echo "::error::Nilai DB_*_TURSO_URL bukan hostname (len=${HOST_LEN}, prefix=$(printf '%s' "$HOST" | cut -c1-8)). Kemungkinan besar JWT tertukar ke field URL. Set URL=https://db-sambasku-staging.iamutaki.com dan token di *_AUTH_TOKEN."
+              exit 1
+            fi
             echo "DNS dig:"
             dig +short "$HOST" A || true
             dig +short "$HOST" AAAA || true
             if [ "$curl_ec" -eq 6 ]; then
-              echo "::error::DNS tidak resolve host=${HOST}. Cek org secret DB_*_TURSO_URL - harus hostname publik (contoh https://db-sambasku-staging.iamutaki.com atau https://data.sambasku.com), bukan Tailscale/LAN/typo."
+              echo "::error::DNS tidak resolve host=${HOST}. Cek org secret DB_*_TURSO_URL - harus hostname publik (contoh https://db-sambasku-staging.iamutaki.com atau https://data.sambasku.com), bukan Tailscale/LAN/typo/JWT."
             else
               echo "::error::Runner tidak reach host=${HOST} (curl_exit=${curl_ec}). Kalau DNS OK tapi koneksi gagal: CF Bot Fight / pakai runner=self-hosted."
             fi
