@@ -139,17 +139,36 @@ jobs:
 
       - name: Preflight DB (TLS + HTTP)
         run: |
+          # curl tidak paham scheme libsql:// - map ke https:// untuk smoke TLS
+          PREFLIGHT_URL="$DATABASE_URL"
+          case "$PREFLIGHT_URL" in
+            libsql://*)
+              PREFLIGHT_URL="https://${PREFLIGHT_URL#libsql://}"
+              ;;
+            http://*|https://*|file:*)
+              ;;
+            *)
+              PREFLIGHT_URL="https://$PREFLIGHT_URL"
+              ;;
+          esac
+          case "$PREFLIGHT_URL" in
+            file:*)
+              echo "Preflight skip (file: lokal)"
+              exit 0
+              ;;
+          esac
+          echo "Preflight URL scheme=$(printf '%s' "$PREFLIGHT_URL" | sed -E 's#://.*##') host=$(printf '%s' "$PREFLIGHT_URL" | sed -E 's#^[a-zA-Z][a-zA-Z0-9+.-]*://##' | cut -d/ -f1)"
           set +e
           code=$(curl -sS -o /tmp/db-preflight.body -w '%{http_code}' \
             --connect-timeout 15 --max-time 30 \
             -H "Authorization: Bearer ${DATABASE_AUTH_TOKEN}" \
             -H "User-Agent: sambasku-database-ci/1.0" \
-            "${DATABASE_URL}/" )
+            "${PREFLIGHT_URL}/" )
           curl_ec=$?
           set -e
           echo "preflight curl_exit=${curl_ec} http_code=${code}"
           if [ "$curl_ec" -ne 0 ]; then
-            echo "::error::Runner tidak bisa reach DATABASE_URL (TLS/DNS/firewall). Cloudflare sering blokir IP GitHub-hosted. Coba runner=self-hosted (homelab) atau allowlist IP / matikan Bot Fight untuk hostname DB."
+            echo "::error::Runner tidak bisa reach DB over HTTPS (TLS/DNS/firewall). Cloudflare sering blokir IP GitHub-hosted. Coba runner=self-hosted (homelab) atau allowlist IP / matikan Bot Fight untuk hostname DB."
             exit 1
           fi
           # 401/403/404 di root masih berarti TCP+TLS OK (sqld/CF menjawab)
