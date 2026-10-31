@@ -9,15 +9,26 @@ Repositori **publik** untuk **artifact kamus offline** aplikasi
 
 Ini **bukan** production database Turso, **bukan** backup akun, dan
 **bukan** tempat menyimpan token. Hanya salinan sanitasi korpus
-`published` yang boleh diunduh klien (mobile / kelak web) lewat HTTPS.
+`published` (lemma + makna + contoh + media + relasi) yang boleh
+diunduh klien (mobile / kelak web) lewat HTTPS.
+
+## Scope
+
+| Masuk dataset | Di luar (pakai API / repo lain) |
+| --- | --- |
+| Lemma, makna, terjemahan, contoh | Auth, users, vote, komentar |
+| Varian, relasi leksikal, pelafalan | Diskusi, notifikasi, audit |
+| Gambar & audio publik + FTS | Wisata, usaha, kuliner, acara, pantun |
+| Referensi: bahasa, dialek, kelas kata, kategori | Backup full Turso (`sambasku/sqlite`) |
 
 ## Apa isi repo ini?
 
 | Ada di git | Tidak di git (Release assets) |
 | --- | --- |
 | README, LICENSE, logo | `database.sqlite.gz` |
-| `schema/` (kontrak DDL / allowlist) | `manifest.json` |
+| `schema/` (kontrak DDL + ERD) | `manifest.json` |
 | `metadata/active.json` (pointer rilis aktif) | `SHA256SUMS` |
+| `scripts/` (export + validate) | |
 
 ```text
 database/
@@ -28,20 +39,32 @@ database/
 ├── scripts/               # export + validate
 ├── schema/
 │   ├── v1.md              # kontrak schema_version = 1
-│   └── QUESTIONS.md       # pertanyaan yang harus dikunci sebelum export
+│   ├── erd.dbml           # ERD publik (dbdiagram.io)
+│   └── QUESTIONS.md       # keputusan allowlist
 ├── metadata/
 │   ├── active.example.json
-│   └── active.json        # diisi saat Release v1 hidup
+│   └── active.json        # pointer Release aktif
 └── (GitHub Release tag vN)
     ├── database.sqlite.gz
     ├── manifest.json
     └── SHA256SUMS
 ```
 
+## ERD (belajar skema)
+
+Skema publik (subset kamus) ada di [`schema/erd.dbml`](schema/erd.dbml).
+
+1. Buka [dbdiagram.io](https://dbdiagram.io/d)
+2. Tempel isi `schema/erd.dbml`
+3. Atau baca kontrak teks: [`schema/v1.md`](schema/v1.md)
+
+Ini **bukan** ERD production penuh (`docs/dbdiagram.dbml` di monorepo
+privat). Hanya tabel yang ada di file SQLite Release.
+
 ## Source of truth
 
 ```text
-Production DB (privat, Turso)
+Production / staging DB (privat, Turso)
         │  export allowlist (`scripts/` + secrets / .env lokal)
         ▼
 GitHub Release di repo ini (imutabel per vN)
@@ -52,7 +75,7 @@ SQLite di perangkat (replica lokal)
 
 Arah panah **satu arah**. Repo ini tidak pernah mengisi production.
 
-## URL stabil (setelah Release v1)
+## URL stabil (setelah Release)
 
 Pointer aktif (mudah rollback tanpa menghapus tag lama):
 
@@ -60,12 +83,12 @@ Pointer aktif (mudah rollback tanpa menghapus tag lama):
 https://raw.githubusercontent.com/sambasku/database/main/metadata/active.json
 ```
 
-Asset per rilis (contoh):
+Asset per rilis (contoh v2):
 
 ```text
-https://github.com/sambasku/database/releases/download/v1/manifest.json
-https://github.com/sambasku/database/releases/download/v1/database.sqlite.gz
-https://github.com/sambasku/database/releases/download/v1/SHA256SUMS
+https://github.com/sambasku/database/releases/download/v2/manifest.json
+https://github.com/sambasku/database/releases/download/v2/database.sqlite.gz
+https://github.com/sambasku/database/releases/download/v2/SHA256SUMS
 ```
 
 Klien memverifikasi **sha256** di manifest sebelum mengganti DB lokal.
@@ -86,35 +109,39 @@ privat**, bukan di app klien.
 
 - Tidak menyimpan tabel `users`, email, password, session, OTP, token
 - Tidak menyimpan kontribusi pending, audit, vote, bookmark, inbox
+- Tidak menyimpan domain non-kamus (places / usaha / kuliner / events / pantun)
 - Tidak commit file `.sqlite` / `.gz` ke branch `main` (lihat `.gitignore`)
 - Tidak menyamakan "Release dataset" dengan "Backup production"
 - Tidak menerima koneksi Turso dari HP / browser publik
 
 ## Schema & evolusi
 
-- Kontrak saat ini: [`schema/v1.md`](schema/v1.md)
-- Pertanyaan yang harus dikunci: [`schema/QUESTIONS.md`](schema/QUESTIONS.md)
-- Naik `schema_version` hanya jika breaking; app lama menolak artifact
-  baru lewat `min_app_version` / cek schema, tetap di DB lama
+- Kontrak: [`schema/v1.md`](schema/v1.md) · ERD: [`schema/erd.dbml`](schema/erd.dbml)
+- Keputusan allowlist: [`schema/QUESTIONS.md`](schema/QUESTIONS.md)
+- Non-breaking (nullable / default): tetap `schema_version = 1`
+  - 2026-10-31: `meanings.meaning_source`, `word_images.attribution`,
+    `lexical_relations.status` + `is_verified`
+- Breaking: naik `schema_version` + `min_app_version`
+- App lama menolak artifact baru lewat cek schema; tetap di DB lama
 
-## Status Fase DS (sebelum mobile SQLite)
+## Status Fase DS
 
 | Langkah | Status |
 | --- | --- |
 | Repo publik + README | **Ada** |
-| Schema v1 dikunci | **Ya** - `schema/v1.md` + `QUESTIONS.md` |
-| Script export | **`scripts/` di repo ini** - `pnpm dataset:export` |
+| Schema v1 + ERD | **Ada** - `v1.md` + `erd.dbml` |
+| Script export | **`scripts/`** - `pnpm dataset:export` |
 | Tes validate (forbidden cols) | **Ada** - `pnpm test` |
 | Actions Release | **Ada** - `workflow_dispatch` `export-release.yml` |
-| Release v1 + `active.json` | **Release v1 hidup**; push scripts + workflow ke `main`, lalu re-run export berisi data |
-| **Fase B** Mobile consume | **Ditunda** sampai DS hijau |
+| Release aktif | Lihat `metadata/active.json` |
+| **Fase B** Mobile consume | **Ditunda** sampai DS hijau + konsumsi siap |
 
 ### Menjalankan export (maintainer)
 
-Dari folder root repo ini (butuh `DATABASE_URL` staging):
+Dari folder root repo ini (butuh `DATABASE_URL` libSQL staging/prod):
 
 ```bash
-cp .env.example .env   # isi DATABASE_URL + DATABASE_AUTH_TOKEN
+cp .env.example .env   # isi DATABASE_URL + DATABASE_AUTH_TOKEN (sqld / Turso)
 pnpm install
 pnpm dataset:export
 # output: tmp/dataset-export/
@@ -127,29 +154,29 @@ pnpm dataset:export
 Env opsional: `DATASET_RELEASE_VERSION`, `DATASET_CHANNEL`, `DATASET_OUT_DIR`,
 `DATASET_MIN_APP_VERSION`.
 
-Secret Turso: lokal di `.env` (gitignored); CI di GitHub Actions
-**secrets** repo ini. Jangan commit token.
+Lokal: `.env` (gitignored). CI: org secrets `DB_*_TURSO_*` (lihat
+`docs/github/org-db-secrets.md`). Jangan commit token.
 
 ### GitHub Actions (Release)
 
 Workflow: [`.github/workflows/export-release.yml`](.github/workflows/export-release.yml)
 (`workflow_dispatch`).
 
-1. Set secrets di repo ini:
-   - `DATABASE_URL` - `libsql://…` (staging dulu)
-   - `DATABASE_AUTH_TOKEN`
+1. Pastikan org secrets sudah diisi (prioritas):
+   - `DB_STAGING_TURSO_URL` / `DB_STAGING_TURSO_AUTH_TOKEN`
+   - `DB_PRODUCTION_TURSO_URL` / `DB_PRODUCTION_TURSO_AUTH_TOKEN`
+   - Acuan: `docs/github/org-db-secrets.md` (monorepo)
+   - Fallback lama repo: `DATABASE_URL` / `DATABASE_AUTH_TOKEN`
 2. Actions → **Export & Release Dataset** → Run workflow
-3. Pilih `channel`, opsional `release_version` (kosong = active+1)
+3. Pilih `channel` (staging/production), opsional `release_version`
 4. `dry_run=true` untuk test export tanpa Release/commit
 
 Job akan: `pnpm test` → export → (skip jika sha sama) → GitHub Release
 `vN` + update `metadata/active.json`.
 
-Setelah artifact siap (CLI atau Actions), pointer aktif ada di
-`metadata/active.json`.
-
 ## Lisensi
 
 Lihat [LICENSE](LICENSE). Isi korpus bahasa (lemma, arti, contoh) mengikuti
 kebijakan editorial SambasKu; artifact teknis di repo ini memakai lisensi
-repo kecuali dinyatakan lain di Release notes.
+repo kecuali dinyatakan lain di Release notes. Kredit foto stock mengikuti
+field `word_images.attribution` bila ada.

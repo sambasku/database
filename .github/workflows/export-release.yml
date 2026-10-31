@@ -2,9 +2,11 @@ name: Export & Release Dataset
 
 # Maintainer: Actions → Export & Release Dataset → Run workflow
 #
-# Secrets (Settings → Secrets and variables → Actions):
-#   DATABASE_URL          - libsql://… (staging dulu)
-#   DATABASE_AUTH_TOKEN   - token baca DB sumber
+# Secrets org (prioritas, shared semua repo DB):
+#   DB_STAGING_TURSO_URL / DB_STAGING_TURSO_AUTH_TOKEN
+#   DB_PRODUCTION_TURSO_URL / DB_PRODUCTION_TURSO_AUTH_TOKEN
+# Fallback repo lama: DATABASE_URL / DATABASE_AUTH_TOKEN
+# (Nama *_TURSO_* = libSQL; host boleh sqld self-host.)
 #
 # Skip Release baru jika sha256 sama dengan metadata/active.json (QUESTIONS G.34).
 
@@ -62,20 +64,39 @@ jobs:
           node-version: 24
           cache: pnpm
 
-      - name: Cek secrets
+      - name: Resolve DB secrets (org prioritas)
+        id: db
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          DATABASE_AUTH_TOKEN: ${{ secrets.DATABASE_AUTH_TOKEN }}
+          CHANNEL: ${{ inputs.channel }}
+          DB_STAGING_TURSO_URL: ${{ secrets.DB_STAGING_TURSO_URL }}
+          DB_STAGING_TURSO_AUTH_TOKEN: ${{ secrets.DB_STAGING_TURSO_AUTH_TOKEN }}
+          DB_PRODUCTION_TURSO_URL: ${{ secrets.DB_PRODUCTION_TURSO_URL }}
+          DB_PRODUCTION_TURSO_AUTH_TOKEN: ${{ secrets.DB_PRODUCTION_TURSO_AUTH_TOKEN }}
+          LEGACY_DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          LEGACY_DATABASE_AUTH_TOKEN: ${{ secrets.DATABASE_AUTH_TOKEN }}
         run: |
-          if [ -z "$DATABASE_URL" ]; then
-            echo "::error::Secret DATABASE_URL kosong"
+          if [ "$CHANNEL" = "production" ]; then
+            URL="${DB_PRODUCTION_TURSO_URL:-$LEGACY_DATABASE_URL}"
+            TOKEN="${DB_PRODUCTION_TURSO_AUTH_TOKEN:-$LEGACY_DATABASE_AUTH_TOKEN}"
+            SRC="DB_PRODUCTION_TURSO_*"
+          else
+            URL="${DB_STAGING_TURSO_URL:-$LEGACY_DATABASE_URL}"
+            TOKEN="${DB_STAGING_TURSO_AUTH_TOKEN:-$LEGACY_DATABASE_AUTH_TOKEN}"
+            SRC="DB_STAGING_TURSO_*"
+          fi
+          if [ -z "$URL" ]; then
+            echo "::error::Secret DB URL kosong untuk channel=$CHANNEL (set $SRC atau DATABASE_URL di org/repo)"
             exit 1
           fi
-          if [ -z "$DATABASE_AUTH_TOKEN" ]; then
-            echo "::error::Secret DATABASE_AUTH_TOKEN kosong"
+          if [ -z "$TOKEN" ]; then
+            echo "::error::Secret DB token kosong untuk channel=$CHANNEL (set $SRC atau DATABASE_AUTH_TOKEN di org/repo)"
             exit 1
           fi
-          echo "Sumber host: $(echo "$DATABASE_URL" | sed -E 's#^[a-z]+://##' | cut -d/ -f1)"
+          echo "::add-mask::$URL"
+          echo "::add-mask::$TOKEN"
+          echo "database_url=$URL" >> "$GITHUB_OUTPUT"
+          echo "database_auth_token=$TOKEN" >> "$GITHUB_OUTPUT"
+          echo "Sumber ($SRC / fallback): $(echo "$URL" | sed -E 's#^[a-z]+://##' | cut -d/ -f1)"
 
       - run: pnpm install --frozen-lockfile
 
@@ -98,8 +119,8 @@ jobs:
 
       - name: Export dataset
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          DATABASE_AUTH_TOKEN: ${{ secrets.DATABASE_AUTH_TOKEN }}
+          DATABASE_URL: ${{ steps.db.outputs.database_url }}
+          DATABASE_AUTH_TOKEN: ${{ steps.db.outputs.database_auth_token }}
           DATASET_RELEASE_VERSION: ${{ steps.ver.outputs.release_version }}
           DATASET_CHANNEL: ${{ inputs.channel }}
           DATASET_MIN_APP_VERSION: ${{ inputs.min_app_version }}

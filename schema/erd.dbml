@@ -1,0 +1,184 @@
+// ============================================================
+// SambasKu public dictionary dataset (offline) - schema_version 1
+// Scope: lemma + korpus kamus saja. Bukan skema production Turso.
+// Sumber kontrak: schema/v1.md + scripts/public-schema-v1.ts
+// Visualisasi: tempel ke https://dbdiagram.io/d
+// ============================================================
+
+Table release_meta {
+  key text [pk, not null]
+  value text [not null]
+  Note: 'release_version, schema_version, released_at (+ channel opsional)'
+}
+
+Table languages {
+  id varchar(26) [pk]
+  code text [not null, unique]
+  name text [not null]
+  native_name text
+  description text
+  is_active boolean [not null, default: true]
+}
+
+Table dialects {
+  id varchar(26) [pk]
+  language_id varchar(26) [not null, ref: > languages.id]
+  code text [not null]
+  name text [not null]
+  description text
+  is_active boolean [not null, default: true]
+  is_default boolean [not null, default: false]
+}
+
+Table word_classes {
+  id varchar(26) [pk]
+  parent_id varchar(26) [ref: > word_classes.id]
+  code text [not null, unique]
+  name text [not null]
+  alias text
+  description text
+}
+
+Table categories {
+  id varchar(26) [pk]
+  parent_id varchar(26) [ref: > categories.id]
+  name text [not null]
+  description text
+}
+
+Table words {
+  id varchar(26) [pk]
+  language_id varchar(26) [not null, ref: > languages.id]
+  lemma text [not null]
+  notes text
+  word_type text [not null, default: 'word', note: 'word | idiom | peribahasa | ungkapan']
+  usage_labels text [not null, default: '[]', note: 'JSON array register/peringatan']
+  status text [not null, note: 'hanya published di artifact']
+  is_verified boolean [not null, default: false]
+  verified_at timestamp
+  is_corrected boolean [not null, default: false]
+  created_at timestamp [not null]
+  updated_at timestamp
+}
+
+Table meanings {
+  id varchar(26) [pk]
+  word_id varchar(26) [not null, ref: > words.id]
+  word_class_id varchar(26) [ref: > word_classes.id]
+  inherited_from_meaning_id varchar(26) [ref: > meanings.id]
+  definition text [not null]
+  is_have_definition boolean [not null, default: true]
+  is_have_translation boolean [not null, default: true]
+  meaning_source text [not null, default: 'manual', note: 'manual | kbbi | kbbi_edited']
+  order_index integer [not null, default: 0]
+  notes text
+  status text [not null]
+  is_verified boolean [not null, default: false]
+  is_corrected boolean [not null, default: false]
+}
+
+Table meaning_translations {
+  id varchar(26) [pk]
+  meaning_id varchar(26) [not null, ref: > meanings.id]
+  language_id varchar(26) [not null, ref: > languages.id]
+  translation_text text [not null]
+  translation_type text [not null, default: 'direct']
+  notes text
+}
+
+Table examples {
+  id varchar(26) [pk]
+  meaning_id varchar(26) [not null, ref: > meanings.id]
+  source_language_id varchar(26) [not null, ref: > languages.id]
+  source_sentence text [not null]
+  target_language_id varchar(26) [ref: > languages.id]
+  target_sentence text
+  source_type text
+  source_reference text
+  notes text
+  status text [not null]
+  is_verified boolean [not null, default: false]
+  is_corrected boolean [not null, default: false]
+}
+
+Table word_variants {
+  id varchar(26) [pk]
+  word_id varchar(26) [not null, ref: > words.id]
+  form text [not null]
+  variant_type text [not null, default: 'alternative']
+  affix_type text
+  affix_value text
+  dialect_id varchar(26) [ref: > dialects.id]
+  notes text
+}
+
+Table word_categories {
+  word_id varchar(26) [not null, ref: > words.id]
+  category_id varchar(26) [not null, ref: > categories.id]
+
+  indexes {
+    (word_id, category_id) [pk]
+  }
+}
+
+Table lexical_relations {
+  id varchar(26) [pk]
+  source_word_id varchar(26) [not null, ref: > words.id]
+  target_word_id varchar(26) [not null, ref: > words.id]
+  relation_type text [not null, note: 'synonym | antonym | has_component | ...']
+  notes text
+  status text [not null]
+  is_verified boolean [not null, default: false]
+}
+
+Table pronunciations {
+  id varchar(26) [pk]
+  word_id varchar(26) [not null, ref: > words.id]
+  dialect_id varchar(26) [ref: > dialects.id]
+  notation text [not null, default: 'ipa']
+  value text [not null]
+  audio_url text
+  speaker_name text
+  notes text
+  status text [not null]
+  is_verified boolean [not null, default: false]
+  is_corrected boolean [not null, default: false]
+}
+
+Table word_images {
+  id varchar(26) [pk]
+  word_id varchar(26) [not null, ref: > words.id]
+  url text [not null]
+  alt_text text
+  is_primary boolean [not null, default: false]
+  content_warnings text [not null, default: '[]']
+  attribution text [note: 'JSON kredit stock; null = upload user']
+  status text [not null]
+  is_verified boolean [not null, default: false]
+  is_corrected boolean [not null, default: false]
+}
+
+Table word_audios {
+  id varchar(26) [pk]
+  word_id varchar(26) [not null, ref: > words.id]
+  example_id varchar(26) [ref: > examples.id]
+  dialect_id varchar(26) [ref: > dialects.id]
+  url text [not null]
+  mime_type text [not null]
+  file_size integer [not null]
+  duration_ms integer
+  speaker_name text
+  is_primary boolean [not null, default: false]
+  status text [not null]
+  is_verified boolean [not null, default: false]
+  is_corrected boolean [not null, default: false]
+}
+
+Table words_fts {
+  word_id varchar(26) [note: 'UNINDEXED; = words.id']
+  lemma text
+  variants text [note: 'gabungan form variant']
+  translations text [note: 'gabungan translation_text']
+
+  Note: 'FTS5 virtual table (unicode61) - bukan tabel relasional biasa'
+}

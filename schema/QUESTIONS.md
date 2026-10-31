@@ -1,6 +1,9 @@
 # Pertanyaan matang sebelum export v1 (**Fase DS**)
 
 Status: **dikunci 2026-09-26** (default plan DS; override hanya via PR).
+Pembaruan non-breaking 2026-10-31: `meaning_source`, `attribution`,
+filter/kolom `lexical_relations.status` - tetap `schema_version = 1`.
+Scope tetap **lemma + korpus offline** (bukan domain wisata/usaha/dll).
 **Fase B (Flutter SQLite) tidak dimulai** sampai gate DS hijau.
 
 
@@ -24,9 +27,12 @@ Legenda: `[x]` dikunci.
 
 ## B. Tabel: boleh masuk / tidak
 
-5. [x] Allowlist `v1.md` cukup untuk search + detail + list A-Z v1.
+5. [x] Allowlist `v1.md` cukup untuk search + detail + list A-Z v1
+   (lemma + korpus saja).
 6. [x] Count sosial / vote / komentar: **tetap API** (bukan snapshot).
 7. [x] `discussions` **permanen di luar** dataset (API + L1).
+   Domain non-kamus (`places`, `usahas`, `events`, `pantun`, …) juga
+   **permanen di luar** sampai keputusan allowlist baru.
 8. [x] Referensi (`languages`, `dialects`, `word_classes`, `categories`):
    export **semua baris aktif** (`deleted_at IS NULL`).
 
@@ -42,7 +48,9 @@ Legenda: `[x]` dikunci.
 14. [x] `notes` pada words/meanings/examples: **ikut** (anggap publik).
 15. [x] `lemma_allows_comma` / `translation_allows_comma`: **tidak** masuk L2.
 16. [x] Images/audios: **`url` + metadata tampilan**; `provider` /
-    `provider_file_id` / `sha` **tidak** masuk.
+    `provider_file_id` / `sha` / `speaker_consent` **tidak** masuk.
+    `word_images.attribution` (JSON kredit stock) **ikut** (publik).
+    `meanings.meaning_source` **ikut** (provenance editorial).
 
 ---
 
@@ -119,7 +127,7 @@ Legenda: `[x]` dikunci.
 | --- | --- |
 | 1-4 | Repo `database`; staging dulu; MIT; CLI trigger |
 | 5-8 | Allowlist v1; sosial/TH = API; ref = semua aktif |
-| 9-16 | No users; atribusi kosong; strip `*_by`/takedown; no comma flags; media URL only |
+| 9-16 | No users; atribusi kontributor kosong; strip `*_by`/takedown; media URL + attribution JSON; meaning_source ikut |
 | 17-20 | Child published; placeholder OK; browse filter di konsumen |
 | 21-25 | unicode61; lemma+variant+translation; ranking beda OK |
 | 26-30 | Non-breaking = v1; breaking naik schema; full replace |

@@ -71,6 +71,7 @@ CREATE TABLE meanings (
   definition TEXT NOT NULL,
   is_have_definition INTEGER NOT NULL DEFAULT 1,
   is_have_translation INTEGER NOT NULL DEFAULT 1,
+  meaning_source TEXT NOT NULL DEFAULT 'manual', -- manual | kbbi | kbbi_edited
   order_index INTEGER NOT NULL DEFAULT 0,
   notes TEXT,
   status TEXT NOT NULL,
@@ -128,7 +129,9 @@ CREATE TABLE lexical_relations (
   source_word_id TEXT NOT NULL REFERENCES words(id),
   target_word_id TEXT NOT NULL REFERENCES words(id),
   relation_type TEXT NOT NULL,
-  notes TEXT
+  notes TEXT,
+  status TEXT NOT NULL,
+  is_verified INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX lexical_relations_target_idx ON lexical_relations (target_word_id);
@@ -154,6 +157,7 @@ CREATE TABLE word_images (
   alt_text TEXT,
   is_primary INTEGER NOT NULL DEFAULT 0,
   content_warnings TEXT NOT NULL DEFAULT '[]',
+  attribution TEXT, -- JSON kredit stock; null = upload user
   status TEXT NOT NULL,
   is_verified INTEGER NOT NULL DEFAULT 0,
   is_corrected INTEGER NOT NULL DEFAULT 0
@@ -189,7 +193,11 @@ CREATE VIRTUAL TABLE words_fts USING fts5(
 );
 `;
 
-/** Tabel yang tidak boleh muncul di artifact publik. */
+/**
+ * Tabel yang tidak boleh muncul di artifact publik.
+ * Domain non-kamus (wisata, usaha, kuliner, acara, pantun, sosial, auth)
+ * sengaja di luar scope: dataset ini hanya lemma + korpus offline.
+ */
 export const FORBIDDEN_TABLES = [
   'users',
   'auth_identities',
@@ -217,6 +225,24 @@ export const FORBIDDEN_TABLES = [
   'discussion_replies',
   'word_import_sessions',
   'comment_blocklist_words',
+  'activity_events',
+  'places',
+  'place_categories',
+  'place_contributions',
+  'usahas',
+  'usaha_categories',
+  'usaha_contributions',
+  'cuisines',
+  'culinary_places',
+  'culinary_categories',
+  'culinary_contributions',
+  'events',
+  'event_categories',
+  'event_contributions',
+  'pantun',
+  'pantun_reports',
+  'regions',
+  'achievements',
 ] as const;
 
 /** Nama kolom yang tidak boleh ada di tabel mana pun. */
@@ -226,8 +252,12 @@ export const FORBIDDEN_COLUMNS = [
   'deleted_by',
   'verified_by',
   'taken_down_by',
+  'taken_down_at',
   'takedown_reason_code',
   'takedown_note',
+  'deleted_at',
+  'import_session_id',
+  'speaker_consent',
   'password_hash',
   'email',
   'lemma_allows_comma',

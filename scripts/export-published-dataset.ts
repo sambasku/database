@@ -238,8 +238,8 @@ export async function exportPublishedDataset(
     source,
     (ph) =>
       `SELECT id, word_id, word_class_id, inherited_from_meaning_id, definition,
-              is_have_definition, is_have_translation, order_index, notes, status,
-              is_verified, is_corrected
+              is_have_definition, is_have_translation, meaning_source, order_index,
+              notes, status, is_verified, is_corrected
        FROM meanings
        WHERE word_id IN (${ph}) AND status = 'published' AND deleted_at IS NULL`,
     wordIds,
@@ -249,9 +249,9 @@ export async function exportPublishedDataset(
     out,
     `INSERT INTO meanings (
       id, word_id, word_class_id, inherited_from_meaning_id, definition,
-      is_have_definition, is_have_translation, order_index, notes, status,
-      is_verified, is_corrected
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      is_have_definition, is_have_translation, meaning_source, order_index, notes,
+      status, is_verified, is_corrected
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     meaningAll.map((r) => [
       r.id,
       r.word_id,
@@ -260,6 +260,7 @@ export async function exportPublishedDataset(
       r.definition,
       toBoolInt(r.is_have_definition),
       toBoolInt(r.is_have_translation),
+      r.meaning_source ?? 'manual',
       r.order_index,
       r.notes,
       r.status,
@@ -372,9 +373,12 @@ export async function exportPublishedDataset(
   const relationCandidates = await selectInChunks(
     source,
     (ph) =>
-      `SELECT id, source_word_id, target_word_id, relation_type, notes
+      `SELECT id, source_word_id, target_word_id, relation_type, notes, status,
+              is_verified
        FROM lexical_relations
-       WHERE source_word_id IN (${ph}) AND deleted_at IS NULL`,
+       WHERE source_word_id IN (${ph})
+         AND status = 'published'
+         AND deleted_at IS NULL`,
     wordIds,
   );
   const relationAll = relationCandidates.filter((r) =>
@@ -384,14 +388,16 @@ export async function exportPublishedDataset(
   await insertMany(
     out,
     `INSERT INTO lexical_relations (
-      id, source_word_id, target_word_id, relation_type, notes
-    ) VALUES (?, ?, ?, ?, ?)`,
+      id, source_word_id, target_word_id, relation_type, notes, status, is_verified
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
     relationAll.map((r) => [
       r.id,
       r.source_word_id,
       r.target_word_id,
       r.relation_type,
       r.notes,
+      r.status,
+      toBoolInt(r.is_verified),
     ]),
   );
 
@@ -429,8 +435,8 @@ export async function exportPublishedDataset(
   const imageAll = await selectInChunks(
     source,
     (ph) =>
-      `SELECT id, word_id, url, alt_text, is_primary, content_warnings, status,
-              is_verified, is_corrected
+      `SELECT id, word_id, url, alt_text, is_primary, content_warnings, attribution,
+              status, is_verified, is_corrected
        FROM word_images
        WHERE word_id IN (${ph}) AND status = 'published' AND deleted_at IS NULL`,
     wordIds,
@@ -439,9 +445,9 @@ export async function exportPublishedDataset(
   await insertMany(
     out,
     `INSERT INTO word_images (
-      id, word_id, url, alt_text, is_primary, content_warnings, status,
+      id, word_id, url, alt_text, is_primary, content_warnings, attribution, status,
       is_verified, is_corrected
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     imageAll.map((r) => [
       r.id,
       r.word_id,
@@ -449,6 +455,7 @@ export async function exportPublishedDataset(
       r.alt_text,
       toBoolInt(r.is_primary),
       toJsonText(r.content_warnings),
+      r.attribution == null ? null : toJsonText(r.attribution),
       r.status,
       toBoolInt(r.is_verified),
       toBoolInt(r.is_corrected),
