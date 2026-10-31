@@ -688,7 +688,20 @@ const isDirect =
 
 if (isDirect) {
   main().catch((err) => {
-    console.error('[dataset:export] gagal', err instanceof Error ? err.message : err);
+    const msg = err instanceof Error ? err.message : String(err);
+    const cause =
+      err instanceof Error && err.cause instanceof Error
+        ? err.cause.message
+        : err instanceof Error && err.cause
+          ? String(err.cause)
+          : undefined;
+    console.error('[dataset:export] gagal', msg);
+    if (cause) console.error('[dataset:export] cause', cause);
+    if (/fetch failed|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|certificate/i.test(`${msg} ${cause ?? ''}`)) {
+      console.error(
+        '[dataset:export] hint: runner tidak reach DB (sering Cloudflare blokir GitHub-hosted). Coba workflow input runner=self-hosted, atau export lokal.',
+      );
+    }
     process.exitCode = 1;
   });
 }

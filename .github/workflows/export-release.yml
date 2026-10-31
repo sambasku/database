@@ -41,6 +41,14 @@ on:
         required: false
         type: boolean
         default: false
+      runner:
+        description: 'ubuntu-latest (publik) atau self-hosted (homelab, jika CF blokir GHA)'
+        required: false
+        type: choice
+        options:
+          - ubuntu-latest
+          - self-hosted
+        default: ubuntu-latest
 
 permissions:
   contents: write
@@ -51,7 +59,7 @@ concurrency:
 
 jobs:
   export-release:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v7
 
@@ -128,6 +136,24 @@ jobs:
           HOST=$(printf '%s' "$URL" | sed -E 's#^[a-zA-Z][a-zA-Z0-9+.-]*://##' | cut -d/ -f1 | cut -d? -f1)
           echo "db_host=$HOST" >> "$GITHUB_OUTPUT"
           echo "Sumber ($SRC): scheme=$(printf '%s' "$URL" | sed -E 's#://.*##') host=$HOST"
+
+      - name: Preflight DB (TLS + HTTP)
+        run: |
+          set +e
+          code=$(curl -sS -o /tmp/db-preflight.body -w '%{http_code}' \
+            --connect-timeout 15 --max-time 30 \
+            -H "Authorization: Bearer ${DATABASE_AUTH_TOKEN}" \
+            -H "User-Agent: sambasku-database-ci/1.0" \
+            "${DATABASE_URL}/" )
+          curl_ec=$?
+          set -e
+          echo "preflight curl_exit=${curl_ec} http_code=${code}"
+          if [ "$curl_ec" -ne 0 ]; then
+            echo "::error::Runner tidak bisa reach DATABASE_URL (TLS/DNS/firewall). Cloudflare sering blokir IP GitHub-hosted. Coba runner=self-hosted (homelab) atau allowlist IP / matikan Bot Fight untuk hostname DB."
+            exit 1
+          fi
+          # 401/403/404 di root masih berarti TCP+TLS OK (sqld/CF menjawab)
+          echo "Preflight TLS OK (HTTP ${code})"
 
       - run: pnpm install --frozen-lockfile
 

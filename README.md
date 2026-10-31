@@ -246,9 +246,23 @@ Workflow: [`.github/workflows/export-release.yml`](.github/workflows/export-rele
 2. Actions → **Export & Release Dataset** → Run workflow
 3. Pilih `channel` (staging/production), opsional `release_version`
 4. `dry_run=true` untuk test export tanpa Release/commit
+5. Jika step export `fetch failed` / preflight gagal: Cloudflare sering
+   blokir IP **GitHub-hosted**. Pilih `runner=self-hosted` (homelab yang
+   bisa `SELECT 1` ke sqld), atau export lokal lalu Release manual.
 
-Job akan: `pnpm test` → export → (skip jika sha sama) → GitHub Release
-`vN` + update `metadata/active.json`.
+Job akan: preflight TLS → `pnpm test` → export → (skip jika sha sama) →
+GitHub Release `vN` + update `metadata/active.json`.
+
+### Export lokal (jika CI tidak reach DB)
+
+```bash
+# database/.env → DATABASE_URL=https://db-sambasku-staging.iamutaki.com + token
+pnpm dataset:export
+# artifact di tmp/dataset-export/ + out/
+```
+
+Lalu di GitHub: buat Release tag `vN` + unggah `database.sqlite.gz`,
+`manifest.json`, `SHA256SUMS`, dan update `metadata/active.json`.
 
 ## Lisensi
 
