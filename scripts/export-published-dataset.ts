@@ -625,15 +625,45 @@ export async function exportPublishedDataset(
   };
 }
 
-async function main(): Promise<void> {
-  const url = process.env.DATABASE_URL;
+/** Normalisasi DATABASE_URL untuk @libsql/client (trim, kutip, scheme). */
+export function normalizeDatabaseUrl(raw: string): string {
+  let url = raw.trim().replace(/^['"]|['"]$/g, '');
   if (!url) {
+    throw new Error('DATABASE_URL kosong setelah trim');
+  }
+  if (/^libsql:\/\/https?:\/\//i.test(url)) {
+    throw new Error(
+      'DATABASE_URL dobel scheme (libsql://https://...). Pakai https://host atau libsql://host saja.',
+    );
+  }
+  if (!/^(libsql|https?|file):/i.test(url)) {
+    url = `https://${url}`;
+  }
+  try {
+    // file: tidak selalu lolos URL() - lewati cek ketat
+    if (!url.startsWith('file:')) {
+      void new URL(url.replace(/^libsql:/i, 'https:'));
+    }
+  } catch {
+    throw new Error(
+      `DATABASE_URL tidak valid. Contoh: https://db-host atau libsql://….turso.io (diterima: ${url.slice(0, 24)}…)`,
+    );
+  }
+  return url;
+}
+
+async function main(): Promise<void> {
+  const rawUrl = process.env.DATABASE_URL;
+  if (!rawUrl) {
     throw new Error('DATABASE_URL wajib (lihat .env.example)');
   }
+  const url = normalizeDatabaseUrl(rawUrl);
+  const hostHint = url.replace(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//, '').split(/[/?]/)[0];
+  log('sumber', { scheme: url.split('://')[0], host: hostHint });
 
   const source = createClient({
     url,
-    authToken: process.env.DATABASE_AUTH_TOKEN || undefined,
+    authToken: process.env.DATABASE_AUTH_TOKEN?.trim() || undefined,
   });
 
   const releaseVersion = Number(process.env.DATASET_RELEASE_VERSION ?? '1');

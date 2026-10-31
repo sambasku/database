@@ -7,10 +7,97 @@
 Repositori **publik** untuk **artifact kamus offline** aplikasi
 **SambasKu** (Kamus Digital Sambas-Indonesia).
 
-Ini **bukan** production database Turso, **bukan** backup akun, dan
+Ini **bukan** production database, **bukan** backup akun, dan
 **bukan** tempat menyimpan token. Hanya salinan sanitasi korpus
 `published` (lemma + makna + contoh + media + relasi) yang boleh
 diunduh klien (mobile / kelak web) lewat HTTPS.
+
+## ERD publik (lemma + korpus)
+
+```mermaid
+erDiagram
+  languages ||--o{ dialects : has
+  languages ||--o{ words : has
+  languages ||--o{ meaning_translations : target
+  languages ||--o{ examples : source_or_target
+  word_classes ||--o{ meanings : classifies
+  categories ||--o{ word_categories : tags
+  words ||--o{ meanings : has
+  words ||--o{ word_variants : has
+  words ||--o{ word_categories : in
+  words ||--o{ lexical_relations : source
+  words ||--o{ lexical_relations : target
+  words ||--o{ pronunciations : has
+  words ||--o{ word_images : has
+  words ||--o{ word_audios : has
+  meanings ||--o{ meaning_translations : has
+  meanings ||--o{ examples : has
+  examples ||--o{ word_audios : optional
+  dialects ||--o{ word_variants : optional
+  dialects ||--o{ pronunciations : optional
+  dialects ||--o{ word_audios : optional
+  words ||--|| words_fts : indexed_as
+
+  languages {
+    text id PK
+    text code UK
+    text name
+  }
+  words {
+    text id PK
+    text language_id FK
+    text lemma
+    text word_type
+    text status
+  }
+  meanings {
+    text id PK
+    text word_id FK
+    text definition
+    text meaning_source
+    text status
+  }
+  meaning_translations {
+    text id PK
+    text meaning_id FK
+    text language_id FK
+    text translation_text
+  }
+  examples {
+    text id PK
+    text meaning_id FK
+    text source_sentence
+    text target_sentence
+  }
+  lexical_relations {
+    text id PK
+    text source_word_id FK
+    text target_word_id FK
+    text relation_type
+    text status
+  }
+  word_images {
+    text id PK
+    text word_id FK
+    text url
+    text attribution
+  }
+  word_audios {
+    text id PK
+    text word_id FK
+    text url
+    text mime_type
+  }
+  words_fts {
+    text word_id
+    text lemma
+    text variants
+    text translations
+  }
+```
+
+Kontrak lengkap: [`schema/v1.md`](schema/v1.md) · DBML: [`schema/erd.dbml`](schema/erd.dbml)
+(tempel ke [dbdiagram.io](https://dbdiagram.io/d) bila mau edit visual).
 
 ## Scope
 
@@ -50,22 +137,11 @@ database/
     └── SHA256SUMS
 ```
 
-## ERD (belajar skema)
-
-Skema publik (subset kamus) ada di [`schema/erd.dbml`](schema/erd.dbml).
-
-1. Buka [dbdiagram.io](https://dbdiagram.io/d)
-2. Tempel isi `schema/erd.dbml`
-3. Atau baca kontrak teks: [`schema/v1.md`](schema/v1.md)
-
-Ini **bukan** ERD production penuh (`docs/dbdiagram.dbml` di monorepo
-privat). Hanya tabel yang ada di file SQLite Release.
-
 ## Source of truth
 
 ```text
-Production / staging DB (privat, Turso)
-        │  export allowlist (`scripts/` + secrets / .env lokal)
+Staging / production DB (privat, libSQL / sqld)
+        │  export allowlist (`scripts/` + org secrets / .env lokal)
         ▼
 GitHub Release di repo ini (imutabel per vN)
         │  HTTPS

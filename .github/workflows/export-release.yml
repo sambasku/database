@@ -84,6 +84,11 @@ jobs:
             TOKEN="${DB_STAGING_TURSO_AUTH_TOKEN:-$LEGACY_DATABASE_AUTH_TOKEN}"
             SRC="DB_STAGING_TURSO_*"
           fi
+
+          # Normalisasi: trim, buang kutip, CRLF, pastikan scheme
+          URL=$(printf '%s' "$URL" | tr -d '\r' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
+          TOKEN=$(printf '%s' "$TOKEN" | tr -d '\r' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
+
           if [ -z "$URL" ]; then
             echo "::error::Secret DB URL kosong untuk channel=$CHANNEL (set $SRC atau DATABASE_URL di org/repo)"
             exit 1
@@ -92,11 +97,37 @@ jobs:
             echo "::error::Secret DB token kosong untuk channel=$CHANNEL (set $SRC atau DATABASE_AUTH_TOKEN di org/repo)"
             exit 1
           fi
+
+          case "$URL" in
+            libsql://*|https://*|http://*|file:*) ;;
+            *)
+              echo "::notice::URL tanpa scheme - prepend https://"
+              URL="https://$URL"
+              ;;
+          esac
+
+          # libsql client: tolak libsql://https://... (dobel scheme)
+          case "$URL" in
+            libsql://https://*|libsql://http://*)
+              echo "::error::URL dobel scheme (libsql://https://...). Isi secret dengan https://host atau libsql://host saja."
+              exit 1
+              ;;
+          esac
+
           echo "::add-mask::$URL"
           echo "::add-mask::$TOKEN"
-          echo "database_url=$URL" >> "$GITHUB_OUTPUT"
-          echo "database_auth_token=$TOKEN" >> "$GITHUB_OUTPUT"
-          echo "Sumber ($SRC / fallback): $(echo "$URL" | sed -E 's#^[a-z]+://##' | cut -d/ -f1)"
+          # GITHUB_ENV lebih andal daripada outputs untuk secret antar-step
+          {
+            echo "DATABASE_URL<<EOF"
+            echo "$URL"
+            echo "EOF"
+            echo "DATABASE_AUTH_TOKEN<<EOF"
+            echo "$TOKEN"
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+          HOST=$(printf '%s' "$URL" | sed -E 's#^[a-zA-Z][a-zA-Z0-9+.-]*://##' | cut -d/ -f1 | cut -d? -f1)
+          echo "db_host=$HOST" >> "$GITHUB_OUTPUT"
+          echo "Sumber ($SRC): scheme=$(printf '%s' "$URL" | sed -E 's#://.*##') host=$HOST"
 
       - run: pnpm install --frozen-lockfile
 
@@ -119,13 +150,18 @@ jobs:
 
       - name: Export dataset
         env:
-          DATABASE_URL: ${{ steps.db.outputs.database_url }}
-          DATABASE_AUTH_TOKEN: ${{ steps.db.outputs.database_auth_token }}
+          # DATABASE_URL + DATABASE_AUTH_TOKEN dari GITHUB_ENV (step Resolve)
           DATASET_RELEASE_VERSION: ${{ steps.ver.outputs.release_version }}
           DATASET_CHANNEL: ${{ inputs.channel }}
           DATASET_MIN_APP_VERSION: ${{ inputs.min_app_version }}
           DATASET_OUT_DIR: ${{ github.workspace }}/tmp/dataset-export
-        run: pnpm dataset:export
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::DATABASE_URL kosong setelah resolve"
+            exit 1
+          fi
+          echo "Export host: $(printf '%s' "$DATABASE_URL" | sed -E 's#^[a-zA-Z][a-zA-Z0-9+.-]*://##' | cut -d/ -f1)"
+          pnpm dataset:export
 
       - name: Baca manifest + gate
         id: manifest
