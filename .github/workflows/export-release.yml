@@ -122,7 +122,8 @@ jobs:
               ;;
           esac
 
-          echo "::add-mask::$URL"
+          # Jangan mask URL/host - butuh terlihat di log saat DNS gagal.
+          # Token saja yang di-mask.
           echo "::add-mask::$TOKEN"
           # GITHUB_ENV lebih andal daripada outputs untuk secret antar-step
           {
@@ -168,7 +169,15 @@ jobs:
           set -e
           echo "preflight curl_exit=${curl_ec} http_code=${code}"
           if [ "$curl_ec" -ne 0 ]; then
-            echo "::error::Runner tidak bisa reach DB over HTTPS (TLS/DNS/firewall). Cloudflare sering blokir IP GitHub-hosted. Coba runner=self-hosted (homelab) atau allowlist IP / matikan Bot Fight untuk hostname DB."
+            HOST=$(printf '%s' "$PREFLIGHT_URL" | sed -E 's#^[a-zA-Z][a-zA-Z0-9+.-]*://##' | cut -d/ -f1 | cut -d? -f1)
+            echo "DNS dig:"
+            dig +short "$HOST" A || true
+            dig +short "$HOST" AAAA || true
+            if [ "$curl_ec" -eq 6 ]; then
+              echo "::error::DNS tidak resolve host=${HOST}. Cek org secret DB_*_TURSO_URL - harus hostname publik (contoh https://db-sambasku-staging.iamutaki.com atau https://data.sambasku.com), bukan Tailscale/LAN/typo."
+            else
+              echo "::error::Runner tidak reach host=${HOST} (curl_exit=${curl_ec}). Kalau DNS OK tapi koneksi gagal: CF Bot Fight / pakai runner=self-hosted."
+            fi
             exit 1
           fi
           # 401/403/404 di root masih berarti TCP+TLS OK (sqld/CF menjawab)
