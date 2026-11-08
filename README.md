@@ -9,7 +9,7 @@ Repositori **publik** untuk **artifact kamus offline** aplikasi
 
 Ini **bukan** production database, **bukan** backup akun, dan
 **bukan** tempat menyimpan token. Hanya salinan sanitasi korpus
-`published` (lemma + makna + contoh + media + relasi) yang boleh
+`published` + `is_verified` (lemma + makna + contoh + media + relasi) yang boleh
 diunduh klien (mobile / kelak web) lewat HTTPS.
 
 ## ERD publik (lemma + korpus)

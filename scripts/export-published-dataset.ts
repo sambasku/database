@@ -204,7 +204,7 @@ export async function exportPublishedDataset(
     `SELECT id, language_id, lemma, notes, word_type, usage_labels, status,
             is_verified, verified_at, is_corrected, created_at, updated_at
      FROM words
-     WHERE status = 'published' AND deleted_at IS NULL`,
+     WHERE status = 'published' AND is_verified = 1 AND deleted_at IS NULL`,
   );
   const wordIds = wordRows.map((w) => String(w.id));
 
@@ -241,7 +241,7 @@ export async function exportPublishedDataset(
               is_have_definition, is_have_translation, meaning_source, order_index,
               notes, status, is_verified, is_corrected
        FROM meanings
-       WHERE word_id IN (${ph}) AND status = 'published' AND deleted_at IS NULL`,
+       WHERE word_id IN (${ph}) AND status = 'published' AND is_verified = 1 AND deleted_at IS NULL`,
     wordIds,
   );
 
@@ -302,7 +302,7 @@ export async function exportPublishedDataset(
               target_sentence, source_type, source_reference, notes, status,
               is_verified, is_corrected
        FROM examples
-       WHERE meaning_id IN (${ph}) AND status = 'published' AND deleted_at IS NULL`,
+       WHERE meaning_id IN (${ph}) AND status = 'published' AND is_verified = 1 AND deleted_at IS NULL`,
     meaningIds,
   );
 
@@ -378,6 +378,7 @@ export async function exportPublishedDataset(
        FROM lexical_relations
        WHERE source_word_id IN (${ph})
          AND status = 'published'
+         AND is_verified = 1
          AND deleted_at IS NULL`,
     wordIds,
   );
@@ -407,7 +408,7 @@ export async function exportPublishedDataset(
       `SELECT id, word_id, dialect_id, notation, value, audio_url, speaker_name,
               notes, status, is_verified, is_corrected
        FROM pronunciations
-       WHERE word_id IN (${ph}) AND status = 'published' AND deleted_at IS NULL`,
+       WHERE word_id IN (${ph}) AND status = 'published' AND is_verified = 1 AND deleted_at IS NULL`,
     wordIds,
   );
 
@@ -438,7 +439,7 @@ export async function exportPublishedDataset(
       `SELECT id, word_id, url, alt_text, is_primary, content_warnings, attribution,
               status, is_verified, is_corrected
        FROM word_images
-       WHERE word_id IN (${ph}) AND status = 'published' AND deleted_at IS NULL`,
+       WHERE word_id IN (${ph}) AND status = 'published' AND is_verified = 1 AND deleted_at IS NULL`,
     wordIds,
   );
 
@@ -468,7 +469,7 @@ export async function exportPublishedDataset(
       `SELECT id, word_id, example_id, dialect_id, url, mime_type, file_size,
               duration_ms, speaker_name, is_primary, status, is_verified, is_corrected
        FROM word_audios
-       WHERE word_id IN (${ph}) AND status = 'published' AND deleted_at IS NULL`,
+       WHERE word_id IN (${ph}) AND status = 'published' AND is_verified = 1 AND deleted_at IS NULL`,
     wordIds,
   );
 
