@@ -1,14 +1,14 @@
 {
-  "release_version": 4,
+  "release_version": 5,
   "schema_version": 1,
   "min_app_version": "0.1.0",
-  "channel": "production",
-  "released_at": "2026-11-04T16:06:44.880Z",
+  "channel": "staging",
+  "released_at": "2026-11-08T11:46:03.921Z",
   "database": {
     "file": "database.sqlite.gz",
-    "url": "https://github.com/sambasku/database/releases/download/v4/database.sqlite.gz",
-    "size": 1811855,
-    "sha256": "d58077ca63234e1464cf64d4de6e95f5c6126f72ba7ad4f9e142c895c451998d"
+    "url": "https://github.com/sambasku/database/releases/download/v5/database.sqlite.gz",
+    "size": 8513,
+    "sha256": "8776e9473a74f4ae7d6603ac9a85d8dff54bed83493d722b8f71244e5b2ceb02"
   },
-  "manifest_url": "https://github.com/sambasku/database/releases/download/v4/manifest.json"
+  "manifest_url": "https://github.com/sambasku/database/releases/download/v5/manifest.json"
 }
