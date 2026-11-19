@@ -309,8 +309,10 @@ jobs:
 
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
+      # active.json = pointer prod (dibaca app production). Rilis staging tidak
+      # boleh menimpanya - itu penyebab v5 staging sempat jadi "active".
       - name: Update metadata/active.json
-        if: ${{ !inputs.dry_run && steps.manifest.outputs.skip != 'true' }}
+        if: ${{ !inputs.dry_run && steps.manifest.outputs.skip != 'true' && inputs.channel == 'production' }}
         env:
           TAG: v${{ steps.ver.outputs.release_version }}
           REL: ${{ steps.ver.outputs.release_version }}
@@ -351,7 +353,7 @@ jobs:
           cat metadata/active.json
 
       - name: Commit active.json
-        if: ${{ !inputs.dry_run && steps.manifest.outputs.skip != 'true' }}
+        if: ${{ !inputs.dry_run && steps.manifest.outputs.skip != 'true' && inputs.channel == 'production' }}
         env:
           REL: ${{ steps.ver.outputs.release_version }}
         run: |
